@@ -8,6 +8,7 @@ import sys
 import re
 import os
 
+import bs4
 from rapidfuzz import fuzz
 from rapidfuzz import process
 
@@ -46,14 +47,40 @@ def read_titles(zotero_csv):
             titles[cite_id]['Sanitized Title'] = sanitize(entry['Title'])
             titles[cite_id]['CiteID'] = cite_id
 
+            titles[cite_id]['PDF File'] = next(path for path in titles[cite_id]['File Attachments'].split(';') if path.lower().endswith('.pdf'))
+            titles[cite_id]['TXT File'] = os.path.join(TXT_PATH, os.path.splitext(os.path.basename(titles[cite_id]['PDF File']))[0] + '.txt')
+
+            titles[cite_id]['citation_nodecolor'] = 'black'
+            if not titles[cite_id]['Notes']:
+                titles[cite_id]['citation_nodecolor'] = 'red'
+
+            titles[cite_id]['citation_skiplist'] = []
+
+            soup = bs4.BeautifulSoup(titles[cite_id]['Notes'], features="html.parser")
+            for line in soup.get_text('\n').splitlines():
+                line = line.strip()
+                if line.startswith('#citation_map '):
+                    command, param = line.split(maxsplit=2)[1:]
+                    sys.stderr.write(f'{cite_id}: pragma: {command} "{param}"\n')
+
+                    if command.lower() == 'set':
+                        k, v = param.split('=', maxsplit=1)
+                        if k.lower() not in [ 'nodecolor' ]:
+                            raise KeyError(f'Unsupported property for "set" command: {k}')
+                        titles[cite_id]['citation_' + k.lower()] = v
+                    elif command.lower() == 'falsepositive':
+                        titles[cite_id]['citation_skiplist'].append(param)
+                    else:
+                        raise KeyError(f'Unsupported citation map pragma: {command}')
+
     return titles
 
 
 def match_citations(titles_dict):
     edges = []
     for cite_id in titles_dict:
-        pdf_file = next(path for path in titles_dict[cite_id]['File Attachments'].split(';') if path.lower().endswith('.pdf'))
-        txt_file = os.path.join(TXT_PATH, os.path.splitext(os.path.basename(pdf_file))[0] + '.txt')
+        pdf_file = titles_dict[cite_id]['PDF File']
+        txt_file = titles_dict[cite_id]['TXT File']
 
         try:
             with open(txt_file, "r") as txt:
@@ -77,7 +104,7 @@ def match_citations(titles_dict):
         references = ''.join(lines[pivot:])
         references = references.replace('\n', ' ')
 
-        candidates = [c for c in titles_dict if c != cite_id and int(titles_dict[c]['Publication Year']) <= int(titles_dict[cite_id]['Publication Year'])]
+        candidates = [c for c in titles_dict if c != cite_id and int(titles_dict[c]['Publication Year']) <= int(titles_dict[cite_id]['Publication Year']) and c not in titles_dict[cite_id]['citation_skiplist']]
 
         for cite_id2 in candidates:
             r = fuzz.partial_ratio(references.lower(), titles_dict[cite_id2]['Title'].lower())
@@ -110,10 +137,6 @@ if __name__ == '__main__':
     # Last, produce a graphviz formatted output
     print('digraph "Citations" {')
 
-    #print('  splines = ortho')
-    #print('  concentrate = true')
-    #print('  margin = 1')
-
     print('  node [fontsize=24, shape = plaintext]')
     print('  edge [style=invis]')
     years_keys = sorted(years.keys(), reverse=True)
@@ -125,9 +148,11 @@ if __name__ == '__main__':
     print('  node [fontsize=20, shape = box]')
     print('  edge [style=""]')
     for cite_id in titles_dict:
-        label = '\\n'.join(textwrap.wrap(titles_dict[cite_id]["Title"], width=28))
-        pdf_file = next(path for path in titles_dict[cite_id]['File Attachments'].split(';') if path.lower().endswith('.pdf'))
-        print(f'  "{cite_id}" [label="{label}", URL="{pdf_file}"]')
+        label = '\\n'.join(textwrap.wrap(titles_dict[cite_id]['Title'], width=28))
+        color = titles_dict[cite_id]['citation_nodecolor']
+        pdf_file = titles_dict[cite_id]['PDF File']
+
+        print(f'  "{cite_id}" [color="{color}", label="{label}", URL="{pdf_file}"]')
 
     print('')
 
@@ -140,4 +165,5 @@ if __name__ == '__main__':
         print(f'  "{cite_id2}" -> "{cite_id1}" /* r = {r} */')
 
     print('}')
+    sys.stderr.write('all done.\n')
 
