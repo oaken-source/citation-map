@@ -218,7 +218,10 @@ if __name__ == '__main__':
     #print('  node [fontsize=18, shape = box]')
     print('  edge [style=""]')
     for cite_id in titles_dict:
-        label = '\\n'.join(textwrap.wrap(titles_dict[cite_id]['Title'], width=28))
+        first_author = titles_dict[cite_id]['Author'].split(';')[0].split(',')[0]
+        long_title = f"{first_author} et al., {titles_dict[cite_id]['Title']}"
+
+        label = '\\n'.join(textwrap.wrap(long_title, width=28))
         color = titles_dict[cite_id]['citation_nodecolor']
         #tooltip = titles_dict[cite_id]['Notes'].replace('"', '\\n')
         tooltip = titles_dict[cite_id]['Tooltip']
