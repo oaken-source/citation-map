@@ -2,21 +2,21 @@
 all: timeline.svg graph.svg
 
 clean:
-	$(RM) timeline.gz timeline.svg graph.gz graph.svg
+	$(RM) timeline.gv timeline.svg graph.gv graph.svg
 
 CSV = Exported\ Items.csv
 
 .PHONY: all clean
 
-timeline.svg: timeline.gz
+timeline.svg: timeline.gv
 	dot $< -Tsvg >$@
 
-graph.svg: graph.gz
+graph.svg: graph.gv
 	fdp $< -Tsvg >$@
 
-graph.gz: $(CSV) analyze_papers.py
+graph.gv: $(CSV) analyze_papers.py
 	python analyze_papers.py "$<" >$@
 
-timeline.gz: $(CSV) analyze_papers.py
+timeline.gv: $(CSV) analyze_papers.py
 	python analyze_papers.py "$<" -t >$@
 

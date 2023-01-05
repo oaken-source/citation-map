@@ -56,7 +56,11 @@ def read_titles(zotero_csv, verbose):
 
             first_author = entry['Author'].split(';')[0]
             first_author_lastname = first_author.split()[0]
-            cite_id_base = sanitize(first_author_lastname) + entry['Publication Year']
+
+            sanitized_title = sanitize(entry['Title'])
+            first_word = sanitized_title.split()[0]
+
+            cite_id_base = sanitize(first_author_lastname) + entry['Publication Year'] + first_word
             cite_id = cite_id_base
 
             tries = 1
@@ -67,12 +71,15 @@ def read_titles(zotero_csv, verbose):
             assert(cite_id not in titles)
 
             titles[cite_id] = entry
-            titles[cite_id]['Sanitized Title'] = sanitize(entry['Title'])
+            titles[cite_id]['Sanitized Title'] = sanitized_title
             titles[cite_id]['CiteID'] = cite_id
 
             titles[cite_id]['citation_nodecolor'] = 'black'
             if not titles[cite_id]['Notes']:
                 titles[cite_id]['citation_nodecolor'] = 'red'
+
+            titles[cite_id]['citation_nodesize'] = 18
+            titles[cite_id]['citation_nodeshape'] = 'box'
 
             try:
                 titles[cite_id]['PDF File'] = next(path for path in titles[cite_id]['File Attachments'].split(';') if path.lower().endswith('.pdf'))
@@ -98,7 +105,7 @@ def read_titles(zotero_csv, verbose):
 
                     if command.lower() == 'set':
                         k, v = param.split('=', maxsplit=1)
-                        if k.lower() not in [ 'nodecolor' ]:
+                        if k.lower() not in [ 'nodecolor', 'nodesize', 'nodeshape' ]:
                             raise KeyError(f'Unsupported property for "set" command: {k}')
                         titles[cite_id]['citation_' + k.lower()] = v
                     elif command.lower() == 'falsepositive':
@@ -112,6 +119,8 @@ def read_titles(zotero_csv, verbose):
     for cite_id in titles:
         for cite_id2 in titles[cite_id]['citation_replaces']:
             titles[cite_id2]['citation_replacedby'].append(cite_id)
+            titles[cite_id2]['citation_nodesize'] = 11
+            titles[cite_id2]['citation_nodeshape'] = 'underline'
 
     return titles
 
@@ -206,7 +215,7 @@ if __name__ == '__main__':
 
         print('')
 
-    print('  node [fontsize=18, shape = box]')
+    #print('  node [fontsize=18, shape = box]')
     print('  edge [style=""]')
     for cite_id in titles_dict:
         label = '\\n'.join(textwrap.wrap(titles_dict[cite_id]['Title'], width=28))
@@ -214,10 +223,11 @@ if __name__ == '__main__':
         #tooltip = titles_dict[cite_id]['Notes'].replace('"', '\\n')
         tooltip = titles_dict[cite_id]['Tooltip']
         pdf_file = titles_dict[cite_id]['PDF File']
-        shape = 'box' if not titles_dict[cite_id]['citation_replacedby'] else 'underline'
-        fontsize = '18' if not titles_dict[cite_id]['citation_replacedby'] else '11'
+        shape = titles_dict[cite_id]['citation_nodeshape']
+        fontsize = int(titles_dict[cite_id]['citation_nodesize']) + \
+                   len([(a, b) for (a, b, _) in edges if b == cite_id])
 
-        print(f'  "{cite_id}" [color="{color}", label="{label}", URL="{pdf_file}", target="_blank", tooltip="{tooltip}", fontsize={fontsize}]')
+        print(f'  "{cite_id}" [color="{color}", label="{label}", URL="{pdf_file}", target="_blank", tooltip="{tooltip}", fontsize={fontsize}, shape="{shape}"]')
 
     print('')
 

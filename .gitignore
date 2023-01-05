@@ -5,6 +5,6 @@ __pycache__
 
 .txt
 
-*.gz
+*.gv
 *.png
 *.svg
